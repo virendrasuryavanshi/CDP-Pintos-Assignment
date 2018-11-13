@@ -3,8 +3,8 @@
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
-#include "devices/pit.h"
 #include "threads/interrupt.h"
+#include "threads/io.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
   
@@ -30,12 +30,20 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-/* Sets up the timer to interrupt TIMER_FREQ times per second,
-   and registers the corresponding interrupt. */
+/* Sets up the 8254 Programmable Interval Timer (PIT) to
+   interrupt PIT_FREQ times per second, and registers the
+   corresponding interrupt. */
 void
 timer_init (void) 
 {
-  pit_configure_channel (0, 2, TIMER_FREQ);
+  /* 8254 input frequency divided by TIMER_FREQ, rounded to
+     nearest. */
+  uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ;
+
+  outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
+  outb (0x40, count & 0xff);
+  outb (0x40, count >> 8);
+
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
 
@@ -60,7 +68,7 @@ timer_calibrate (void)
   /* Refine the next 8 bits of loops_per_tick. */
   high_bit = loops_per_tick;
   for (test_bit = high_bit >> 1; test_bit != high_bit >> 10; test_bit >>= 1)
-    if (!too_many_loops (loops_per_tick | test_bit))
+    if (!too_many_loops (high_bit | test_bit))
       loops_per_tick |= test_bit;
 
   printf ("%'"PRIu64" loops/s.\n", (uint64_t) loops_per_tick * TIMER_FREQ);
@@ -73,6 +81,7 @@ timer_ticks (void)
   enum intr_level old_level = intr_disable ();
   int64_t t = ticks;
   intr_set_level (old_level);
+  barrier ();
   return t;
 }
 
@@ -89,22 +98,20 @@ timer_elapsed (int64_t then)
 void
 timer_sleep (int64_t ticks) 
 {
-  	int64_t start = timer_ticks ();
-	int64_t wakeup_at = start + ticks;
-	ASSERT (intr_get_level () == INTR_ON);
-	/* Put the thread to sleep in timer sleep queue */
+  int64_t start = timer_ticks ();
+  int64_t wakeup=start+ticks;
+  ASSERT (intr_get_level () == INTR_ON);
+  
 
-	thread_priority_temporarily_up ();
-	thread_block_till (wakeup_at, before);
-	
-	/* original code -- to be decommissioned */
-	while (timer_elapsed (start) < ticks)
-		thread_yield (); */
-	/* Thread must quit sleep and also free its successor
-	if that thead needs to wakeup at the same time. */
-
-	thread_set_next_wakeup ();
-	thread_priority_restore ();
+  // set the priority temporarily MAX so that when it wakes up, it is processed first
+  thread_set_temporarily_up();
+  // send the thread to sleeping state and adds to the sleeper list
+  thread_sleep(wakeup,start);
+  // when the thread wakes up,
+  // it wakes up other threads having the same wakeup time recursively.
+  set_next_wakeup();
+  // restore the priority of the thread to the original value
+  thread_restore();	
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
@@ -133,7 +140,6 @@ timer_nsleep (int64_t ns)
 
 /* Busy-waits for approximately MS milliseconds.  Interrupts need
    not be turned on.
-
    Busy waiting wastes CPU cycles, and busy waiting with
    interrupts off for the interval between timer ticks or longer
    will cause timer ticks to be lost.  Thus, use timer_msleep()
@@ -146,7 +152,6 @@ timer_mdelay (int64_t ms)
 
 /* Sleeps for approximately US microseconds.  Interrupts need not
    be turned on.
-
    Busy waiting wastes CPU cycles, and busy waiting with
    interrupts off for the interval between timer ticks or longer
    will cause timer ticks to be lost.  Thus, use timer_usleep()
@@ -159,7 +164,6 @@ timer_udelay (int64_t us)
 
 /* Sleeps execution for approximately NS nanoseconds.  Interrupts
    need not be turned on.
-
    Busy waiting wastes CPU cycles, and busy waiting with
    interrupts off for the interval between timer ticks or longer
    will cause timer ticks to be lost.  Thus, use timer_nsleep()
@@ -206,7 +210,6 @@ too_many_loops (unsigned loops)
 
 /* Iterates through a simple loop LOOPS times, for implementing
    brief delays.
-
    Marked NO_INLINE because code alignment can significantly
    affect timings, so that if this function was inlined
    differently in different places the results would be difficult
