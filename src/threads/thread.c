@@ -11,6 +11,7 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "devices/timer.h"
 #ifdef USERPROG
 #include "userprog/process.h"
 #endif
@@ -23,6 +24,7 @@
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
 static struct list ready_list;
+static struct list list_sleepers;
 
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
@@ -84,6 +86,7 @@ static tid_t allocate_tid (void);
 
    It is not safe to call thread_current() until this function
    finishes. */
+   
 void
 thread_init (void) 
 {
@@ -92,6 +95,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
+  list_init (&list_sleepers);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -137,6 +141,25 @@ thread_tick (void)
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
     intr_yield_on_return ();
+    
+	if(!list_empty(&list_sleepers))
+	{
+		struct list_elem *tmp = list_head(&list_sleepers);
+		struct thread* t1 = list_entry(tmp, struct thread, allelem);
+		if(t1->wakeup_time <= timer_ticks()) thread_unblock(t1);
+	}
+}
+
+void thread_set_next_wakeup()
+{
+	list_remove(list_head(&list_sleepers));
+	if(!list_empty(&list_sleepers))
+	{
+		struct list_elem *tmp = list_head(&list_sleepers);
+		struct thread *t1 = list_entry(tmp, struct thread, allelem);
+		if(t1->wakeup_time <= timer_ticks()) thread_unblock(t1);
+	}
+	
 }
 
 /* Prints thread statistics. */
@@ -582,3 +605,39 @@ allocate_tid (void)
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
+
+bool before(const struct list_elem *a, const struct list_elem *b, void*aux UNUSED)
+{
+	struct thread *t1 = list_entry(a, struct thread, allelem);
+	struct thread *t2 = list_entry(b, struct thread, allelem);
+	if(t1->wakeup_time == t2->wakeup_time) return t1->original_priority > t2->original_priority;
+	return t1->wakeup_time < t2->wakeup_time;
+}
+
+void thread_block_till(int64_t wakeup_at, list_less_func *before)
+{
+	thread_current()->wakeup_time = wakeup_at;
+	list_push_back(&list_sleepers, &thread_current()->elem);
+	list_sort(&list_sleepers, before, NULL);
+	thread_block();
+}
+
+bool cmp(const struct list_elem *a, const struct list_elem *b, void *aux UNUSED)
+{
+	struct thread *t1 = list_entry(a, struct thread, allelem);
+	struct thread *t2 = list_entry(b, struct thread, allelem);
+	return t1->priority > t2->priority;
+}
+
+void thread_priority_temporarily_up()
+{
+	thread_current()->original_priority = thread_current()->priority;
+	thread_current()->priority = PRI_MAX;
+	list_sort(&ready_list, cmp, NULL);
+}
+
+void thread_priority_restore()
+{
+	thread_current()->priority = thread_current()->original_priority;
+	list_sort(&ready_list, cmp, NULL);
+}
