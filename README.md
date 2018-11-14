@@ -1,6 +1,6 @@
 # CDP PintOS Assignment
 
-This is my submission for following Pintos [Assignment](https://drive.google.com/file/d/1eGXkml_AY-WhnkMKVebFXoOibMcjexhO/view?usp=drivesdk)
+This is our submission for following Pintos [Assignment](https://drive.google.com/file/d/1eGXkml_AY-WhnkMKVebFXoOibMcjexhO/view?usp=drivesdk)
 
 
 ## Authors
