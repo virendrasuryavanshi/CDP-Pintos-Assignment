@@ -5,9 +5,9 @@ This is my submission for following Pintos [Assignment](https://drive.google.com
 
 ## Authors
 
-Suryavanshi Virendrasingh (B16037)
-Sujetth Rangannath (B16036)
-Amrendra Singh (B16010)
+Suryavanshi Virendrasingh (B16037)  
+Sujetth Rangannath (B16036)  
+Amrendra Singh (B16010)  
 
 ## Result 
 
