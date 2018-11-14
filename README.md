@@ -1,9 +1,9 @@
-# CDP PintOS Assignment
+# CDP Pintos Assignment
 
 This is our submission for the following Pintos [Assignment](https://drive.google.com/file/d/1eGXkml_AY-WhnkMKVebFXoOibMcjexhO/view?usp=drivesdk)
 
 
-## Authors
+## Contributors
 
 Suryavanshi Virendrasingh (B16037)  
 Sujetth Rangannath (B16036)  
