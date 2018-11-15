@@ -11,39 +11,37 @@ Amrendra Singh (B16010)
 
 ## Changes 
 
-Changes in timer.c:
+**Changes in timer.c:**    
 Only the timer_sleep function was modified as specified in the assignment. 
 The while loop causing busy wait was removed and all the functions specified in task 1, 2 and 3 were called in the given order.
 
-Changes in thread.c:
-Following functions were added:
-
+**Changes in thread.c:**    
+*Following functions were added:*  
 1. void thread_priority_temporarily_up()
-- Temporarily increase thread priority so that no other thread interrupts its execution. (Since the operations are not necessarily atomic).
+  - Temporarily increase thread priority so that no other thread interrupts its execution. (Since the operations are not necessarily atomic).
 
 2. void thread_priority_restore()
-- Restore thread priority to original value so that other threads can get executed.
+  - Restore thread priority to original value so that other threads can get executed.
 
 3. void thread_block_till(int64_t wakeup_at, list_less_func *before)
-- Add current thread to sleepers list with the given wakeup time. Block the current thread.
+  - Add current thread to sleepers list with the given wakeup time. Block the current thread.
 
 4. bool before(const struct list_elem *a, const struct list_elem *b, void*aux UNUSED)
-- Comparator function for sleeper list (Works on wakeup times)
+  - Comparator function for sleeper list (Works on wakeup times)
 
 5. bool cmp(const struct list_elem *a, const struct list_elem *b, void*aux UNUSED)
-- Comparator function for ready list (Works on priority)
+  - Comparator function for ready list (Works on priority)
 
 6. void thread_wakeup(int64_t current_time)
-- Checks if the first thread on sleepers list should be woken up. Unblocks it if the condition evaluates to true, removes thread from sleepers list.
+  - Checks if the first thread on sleepers list should be woken up. Unblocks it if the condition evaluates to true, removes thread from sleepers list.
   Called by thread_tick() function with timer_ticks() as a parameter.
   
 7. void thread_set_next_wakeup()
-- Called after a thread is woken up from sleep. This is primarily used to unblock any threads with the same wakeup time as itself 
+  - Called after a thread is woken up from sleep. This is primarily used to unblock any threads with the same wakeup time as itself 
   (This makes it so that the thread_tick() function doesn't take too many ticks to execute
   
-Following functions were modified:
-
-1. In thread_unblock(), the unblocked thread was added into the ready list using list_insert_ordered() instead of the default list_push_back() so that the ready list is in the sorted order.
+**Following functions were modified:**    
+  In thread_unblock(), the unblocked thread was added into the ready list using list_insert_ordered() instead of the default list_push_back() so that the ready list is in the sorted order.
 
 ## Result 
 
