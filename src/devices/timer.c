@@ -3,8 +3,8 @@
 #include <inttypes.h>
 #include <round.h>
 #include <stdio.h>
+#include "devices/pit.h"
 #include "threads/interrupt.h"
-#include "threads/io.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
   
@@ -30,20 +30,12 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
-/* Sets up the 8254 Programmable Interval Timer (PIT) to
-   interrupt PIT_FREQ times per second, and registers the
-   corresponding interrupt. */
+/* Sets up the timer to interrupt TIMER_FREQ times per second,
+   and registers the corresponding interrupt. */
 void
 timer_init (void) 
 {
-  /* 8254 input frequency divided by TIMER_FREQ, rounded to
-     nearest. */
-  uint16_t count = (1193180 + TIMER_FREQ / 2) / TIMER_FREQ;
-
-  outb (0x43, 0x34);    /* CW: counter 0, LSB then MSB, mode 2, binary. */
-  outb (0x40, count & 0xff);
-  outb (0x40, count >> 8);
-
+  pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
 }
 
@@ -68,7 +60,7 @@ timer_calibrate (void)
   /* Refine the next 8 bits of loops_per_tick. */
   high_bit = loops_per_tick;
   for (test_bit = high_bit >> 1; test_bit != high_bit >> 10; test_bit >>= 1)
-    if (!too_many_loops (high_bit | test_bit))
+    if (!too_many_loops (loops_per_tick | test_bit))
       loops_per_tick |= test_bit;
 
   printf ("%'"PRIu64" loops/s.\n", (uint64_t) loops_per_tick * TIMER_FREQ);
@@ -81,7 +73,6 @@ timer_ticks (void)
   enum intr_level old_level = intr_disable ();
   int64_t t = ticks;
   intr_set_level (old_level);
-  barrier ();
   return t;
 }
 
@@ -99,13 +90,14 @@ void
 timer_sleep (int64_t ticks) 
 {
   int64_t start = timer_ticks ();
-  int64_t wakeup=start+ticks;
+  int64_t wakeup_at = start + ticks;
   ASSERT (intr_get_level () == INTR_ON);
-  
-
-  thread_set_temporarily_up();
-  thread_sleep(wakeup,start);
-  thread_restore();	
+  thread_priority_temporarily_up();
+  thread_block_till(wakeup_at, before);
+  /*while (timer_elapsed (start) < ticks) 
+    thread_yield ();*/
+  thread_set_next_wakeup();
+  thread_priority_restore();
 }
 
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
